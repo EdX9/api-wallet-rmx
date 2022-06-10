@@ -14,7 +14,7 @@ class MathServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->app->singleton(CognitoClient::class, function ($app) {
+        $this->app->singleton(MathService::class, function ($app) {
             return new MathService(
                 config()
             );

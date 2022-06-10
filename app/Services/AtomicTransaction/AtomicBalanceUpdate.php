@@ -100,8 +100,24 @@ class AtomicBalanceUpdate
 
     public function transfer($walletReceiver,string $amount,array $meta = [],bool $force=false)
     {
+        return $this->transaction($amount,$walletReceiver,$meta,$force,Transfer::STATUS_TRANSFER);
+    }
+
+    public function pay($walletReceiver,string $amount,array $meta = [],bool $force=false)
+    {
+        return $this->transaction($amount,$walletReceiver,$meta,$force,Transfer::STATUS_PAID);
+    }
+
+    public function refound($walletReceiver,string $amount,array $meta = [],bool $force=false)
+    {
+        return $this->transaction($amount,$walletReceiver,$meta,$force,Transfer::STATUS_REFUND);
+    }
+
+
+    public function transaction($amount,$walletReceiver,$meta,$force,$type)
+    {
         // Start the transaction
-        DB::transaction(function () use ($amount,$walletReceiver,$meta,$force) { 
+        DB::transaction(function () use ($amount,$walletReceiver,$meta,$force,$type) { 
             $originalWallet = $this->wallet;
             $this->withdraw($amount,$meta,true,$force);
             $withdraws = $this->getLastTransaction()[0];
@@ -111,7 +127,7 @@ class AtomicBalanceUpdate
             $this->deposit($amount,$meta,true);
             $deposit = $this->getLastTransaction()[0];
             $this->setWallet($originalWallet);
-            $this->setTransfer($originalWallet, $walletReceiver,Transfer::STATUS_TRANSFER,$deposit,$withdraws);
+            $this->setTransfer($originalWallet, $walletReceiver,$type,$deposit,$withdraws);
 
         }); 
         // End transaction

@@ -103,17 +103,14 @@ class AtomicBalanceUpdate
         // Start the transaction
         DB::transaction(function () use ($amount,$walletReceiver,$meta,$force) { 
             $originalWallet = $this->wallet;
-            \Log::debug("OriginalWallet:".$originalWallet->id);
             $this->withdraw($amount,$meta,true,$force);
             $withdraws = $this->getLastTransaction()[0];
 
             $this->setWallet($walletReceiver);
-            \Log::debug("newWallet:".$this->wallet->id.'  '.$walletReceiver->id);
 
             $this->deposit($amount,$meta,true);
             $deposit = $this->getLastTransaction()[0];
             $this->setWallet($originalWallet);
-            \Log::debug("lastWallet:".$this->wallet->id);
             $this->setTransfer($originalWallet, $walletReceiver,Transfer::STATUS_TRANSFER,$deposit,$withdraws);
 
         }); 

@@ -36,7 +36,7 @@ class Transaction extends Model
     protected $casts = [
         'wallet_id' => 'int',
         'confirmed' => 'bool',
-        'meta' => 'json',
+        'meta' => 'array',
     ];
 
     public function getTable(): string

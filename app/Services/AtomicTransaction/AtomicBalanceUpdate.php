@@ -80,6 +80,30 @@ class AtomicBalanceUpdate
     }
 
     /**
+     * Valida que el monto sea positivo
+     */
+    private function verifyPositiveAmount(string $amount):void
+    {
+        if($this->math->isNegative($amount)){
+            throw new Exception("No debe ingresar números negativos", 1);
+        };
+    }
+    /**
+     * Revisa las reglas de Transferencias
+     */
+    private function checkTransactionRules(string $type,Model $originalWallet,Model $walletReceiver):void
+    {
+        /**Verifica si la transferencia se realiza entre wallets del mismo tipo */
+        if(
+            self::BLOCK_TRANSFER_DISTINCT_WALLETS && 
+            $type== $this->classTransfer::STATUS_TRANSFER && 
+            $originalWallet->slug !== $walletReceiver->slug)
+        {
+            throw new Exception('Error No se puede Realizar Transacciones entre Diferentes Wallet', 1);
+        }
+    }
+
+    /**
      * Establece la wallet sobre la cual se realizaran las operaciones
      */
     public function setWallet(Model $wallet):self 
@@ -291,39 +315,6 @@ class AtomicBalanceUpdate
     }
 
     /**
-     * Obtiene la ultima transacción realizada
-     */
-    public function getLastTransaction() : array
-    {
-        return [$this->lastTransaction,$this->wallet];
-    }
-
-    /**
-     * Revisa las reglas de Transferencias
-     */
-    private function checkTransactionRules(string $type,Model $originalWallet,Model $walletReceiver):void
-    {
-        /**Verifica si la transferencia se realiza entre wallets del mismo tipo */
-        if(
-            self::BLOCK_TRANSFER_DISTINCT_WALLETS && 
-            $type== $this->classTransfer::STATUS_TRANSFER && 
-            $originalWallet->slug !== $walletReceiver->slug)
-        {
-            throw new Exception('Error No se puede Realizar Transacciones entre Diferentes Wallet', 1);
-        }
-    }
-
-    /**
-     * Valida que el monto sea positivo
-     */
-    private function verifyPositiveAmount(string $amount):void
-    {
-        if($this->math->isNegative($amount)){
-            throw new Exception("No debe ingresar números negativos", 1);
-        };
-    }
-
-    /**
      * Incrementa el balance de la wallet
      */
     private function incrementWalletBalance(string $amount):void
@@ -344,5 +335,12 @@ class AtomicBalanceUpdate
             $amount,
             0);
         $this->wallet->save();
+    }
+    /**
+     * Obtiene la ultima transacción realizada
+     */
+    public function getLastTransaction() : array
+    {
+        return [$this->lastTransaction,$this->wallet];
     }
 }

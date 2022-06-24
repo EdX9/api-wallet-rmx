@@ -9,6 +9,9 @@ return [
     'math' => [
         'scale' => 64,
     ],
+    'lock' => [
+        'seconds' => 3,
+    ],
     /**
      * Base model 'transaction'.
      */

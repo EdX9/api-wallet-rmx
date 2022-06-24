@@ -2,10 +2,10 @@
 
 namespace App\Providers;
 
-use App\Services\Math\MathService;
 use Illuminate\Support\ServiceProvider;
+use App\Services\AtomicTransaction\AtomicBalanceUpdate;
 
-class MathServiceProvider extends ServiceProvider
+class AtomicBalanceUpdateProvider extends ServiceProvider
 {
     /**
      * Register services.
@@ -14,8 +14,10 @@ class MathServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->app->singleton(MathService::class, function ($app) {
-            return new MathService(
+        $this->app->singleton(AtomicBalanceUpdate::class, function ($app) {
+            return new AtomicBalanceUpdate(
+                app(lockService::class),
+                app(MathService::class),
                 config()
             );
         });

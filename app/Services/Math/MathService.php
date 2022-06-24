@@ -156,6 +156,15 @@ final class MathService
         ->compareTo(BigDecimal::of($second));
     }
 
+    /**
+     * Revisa si el numero es negativo
+     */
+    public function isNegative(float|int|string $first):bool
+    {
+        return BigDecimal::of($first)
+        ->isNegative();
+    }
+
     private function toStringParam(string|float|int $number,?int $scale = null)
     {
         return is_string($number)?$number:number_format($number,$scale ?? $this->scale,'.','');

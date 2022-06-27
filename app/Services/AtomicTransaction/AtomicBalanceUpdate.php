@@ -27,6 +27,8 @@ class AtomicBalanceUpdate
     private $walletClass;
     private const BLOCK_TRANSFER_DISTINCT_WALLETS = true;
     private $lockKey;
+    private $amountMaxRange;
+
 
     public function __construct(
         private lockService $cache,
@@ -45,6 +47,8 @@ class AtomicBalanceUpdate
         $this->classTransfer    = $this->config->get('walletRmx.transfer.model',  Transfer::class);
         // Modelo de Transacción
         $this->classTransaction = $this->config->get('walletRmx.transaction.model', Transaction::class);
+        // Rango Máximo
+        $this->amountMaxRange = $this->config->get('walletRmx.math.scale', 64) -1;
     }
 
     /**
@@ -89,6 +93,16 @@ class AtomicBalanceUpdate
         };
     }
     /**
+     * Valida que el monto este dentro del Rango Soportado
+     */
+    private function verifyAmountRange(string $amount):void
+    {
+        $amountLen = strlen(str_replace(['-','.'],['',''],$amount));
+        if ($amountLen > $this->amountMaxRange ) {
+            throw new Exception('Monto fuera de Rango',0);
+        }
+    }
+    /**
      * Revisa las reglas de Transferencias
      */
     private function checkTransactionRules(string $type,Model $originalWallet,Model $walletReceiver):void
@@ -127,6 +141,8 @@ class AtomicBalanceUpdate
      */
     public function deposit(string $amount,array $meta = [],bool $confirmed = true) : Model
     {
+        // Verificar el rango
+        $this->verifyAmountRange($amount);
         // Verifica que el monto sea Positivo 
         $this->verifyPositiveAmount($amount);
         // Verifica que la wallet sea valida
@@ -155,7 +171,8 @@ class AtomicBalanceUpdate
      */
     public function withdraw(string $amount,array $meta = [],bool $confirmed = true,bool $force=false): Model
     {
-        
+        // Verificar el rango
+        $this->verifyAmountRange($amount);
         // Verifica que el monto sea Positivo
         $this->verifyPositiveAmount($amount);
         // Verifica que la wallet sea valida

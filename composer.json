@@ -48,7 +48,8 @@
         "post-create-project-cmd": [
             "@php artisan key:generate --ansi"
         ],
-        "pest:test":"./vendor/bin/pest"
+        "pest:test":"./vendor/bin/pest",
+        "pest:test:coverage":"./vendor/bin/pest --coverage-html coverage"
     },
     "extra": {
         "laravel": {

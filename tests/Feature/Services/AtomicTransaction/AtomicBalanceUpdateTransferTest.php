@@ -85,8 +85,7 @@ test('Transferencia con monto negativo', function ($saldoWallet1,$saldoWallet2,$
     $this->wallet2->balance= $saldoWallet2;
     $this->wallet2->save();
 
-    $walletBalanceUpdate = app(AtomicBalanceUpdate::class)->setWallet($this->wallet);
-    $walletBalanceUpdate->transfer($this->wallet2,$montoATransferir);   
+    $this->atomicTransaction->transfer($this->wallet2,$montoATransferir);   
  
 })->with([
     [ -15000,15000,-1],
@@ -101,14 +100,24 @@ test('Transferencia entre wallets fondos insuficientes', function ($saldoWallet1
     $this->wallet2->balance= $saldoWallet2;
     $this->wallet2->save();
 
-    $walletBalanceUpdate = app(AtomicBalanceUpdate::class)->setWallet($this->wallet);
-    $walletBalanceUpdate->transfer($this->wallet2,$montoATransferir);   
+    $this->atomicTransaction->transfer($this->wallet2,$montoATransferir);   
  
 })->with([
     [-0.1,10,1],
     [0,10,0.5]
 ])->throws(Exception::class,'Fondos Insuficientes');
 
+test('No se hagan transferencias entre distintas wallet ',function(){
+    $this->wallet3 = Wallet::factory()->create([
+        'holder_id' => 3,
+        'name'=>'Recargas Wallet',
+        'slug'=>'Recargas-wallet',
+        'balance'=>'1000'
+    ]);
+    $this->atomicTransaction = app(AtomicBalanceUpdate::class)->setWallet($this->wallet3);
+    $this->atomicTransaction->transfer($this->wallet2,10);   
+})
+->throws(Exception::class,'Error No se puede Realizar Transacciones entre Diferentes Wallet');
 
 test('Wallet no ingresada', function () 
 {

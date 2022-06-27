@@ -94,6 +94,14 @@ test('Retiro forzado ', function ($retiro,$balanceEsperado)
 /**
  * Errores
  */
+test('retiro numero fuera de rango ', function ($saldoEntero) 
+{
+    $this->atomicTransaction->withdraw($saldoEntero);
+})->with([//100000000000000000000000000000000000000000000000000000000000//60
+    '1000000000000000000000000000000000000000000000000000000000000000',
+    1000000000000000000000000000000000000000000000000000000000000000,
+    '1.000000000000000000000000000000000000000000000000000000000000000'
+])->throws(Exception::class,'Monto fuera de Rango');
 
 test('Retiro fondos insuficientes ', function () 
 {   

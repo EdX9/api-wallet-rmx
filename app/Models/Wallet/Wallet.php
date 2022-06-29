@@ -3,12 +3,14 @@
 namespace App\Models\Wallet;
 
 use App\Traits\Models\HasUuid;
+use App\Traits\Models\Wallet\WalletOperations;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Wallet extends Model
 {
     use HasFactory, HasUuid;
+    use WalletOperations;
     /**
      * @var string[]
      */

@@ -291,6 +291,28 @@ class AtomicBalanceUpdate
     }
 
     /**
+     * Actualización de Balance, esta acción bloquea la wallet durante el proceso
+     */
+    public function balanceUpdate()
+    {
+        return $this->cache->lock($this->lockKey,$this->ttlBlock,function() 
+        {
+            DB::transaction(function ()
+            {
+                $updateAmount = $this->wallet->Transactions()
+                ->where('confirmed', true)
+                ->sum('amount');
+                if ($this->math->compare($updateAmount,$this->wallet->balance) !== 0 ) 
+                {
+                    $this->wallet->balance = $updateAmount;
+                    $this->wallet->save();
+                }
+            }); 
+            return $this->wallet;
+         });
+    }
+
+    /**
      * Convierte el monto a un decimal dependiendo de la configuración de la wallet
      */
     private function castToDecimal(string $amount):string

@@ -2,6 +2,7 @@
 
 namespace Database\Factories\Wallet;
 
+use App\Models\Wallet\Transaction;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -25,5 +26,23 @@ class TransactionFactory extends Factory
             'amount'=>$this->faker->numberBetween(),
             'confirmed'=>1
         ];
+    }
+
+    public function deposit()
+    {
+        return $this->state(function (array $attributes) {
+            return [
+                'type'=>Transaction::TYPE_DEPOSIT,
+            ];
+        });
+    }
+
+    public function withdraw()
+    {
+        return $this->state(function (array $attributes) {
+            return [
+                'type'=>Transaction::TYPE_WITHDRAW,
+            ];
+        });
     }
 }

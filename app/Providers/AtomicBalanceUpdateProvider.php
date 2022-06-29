@@ -16,7 +16,7 @@ class AtomicBalanceUpdateProvider extends ServiceProvider
     {
         $this->app->singleton(AtomicBalanceUpdate::class, function ($app) {
             return new AtomicBalanceUpdate(
-                app(lockService::class),
+                app(AtomicTransactionDatabaseService::class),
                 app(MathService::class),
                 config()
             );

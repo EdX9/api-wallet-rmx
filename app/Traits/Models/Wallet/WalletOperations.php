@@ -28,6 +28,14 @@ trait WalletOperations
     }
 
     /**
+     * Obtiene todas las transacciones de la wallet
+     */
+    public function getAllTransactions($valid=true)
+    {
+        return $this->Transactions()->where('confirmed', $valid);
+    }
+
+    /**
      * Permite depositar Dinero a la wallet mediante AtomicBalanceUpdate
      */
     public function deposit(string $amount, array $meta = [])

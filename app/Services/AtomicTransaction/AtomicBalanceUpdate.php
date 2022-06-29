@@ -6,11 +6,10 @@ use Exception;
 use App\Models\Wallet\Wallet;
 use App\Models\Wallet\Transfer;
 use App\Models\Wallet\Transaction;
-use App\Services\Lock\lockService;
 use App\Services\Math\MathService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Config\Repository as ConfigRepository;
+use App\Services\AtomicTransaction\AtomicTransactionDatabaseService;
 
 /**
  * Clase para realizar operaciones Atómicas utilizando 
@@ -31,14 +30,14 @@ class AtomicBalanceUpdate
 
 
     public function __construct(
-        private lockService $cache,
+        private AtomicTransactionDatabaseService $atomic,
         private MathService $math,
         private ConfigRepository $config
         ) 
     {
         /**
          * Configura las opciones sobre el archivo config/walletRmx
-         */
+        */
         // Modelo de Wallet
         $this->walletClass      = $this->config->get('walletRmx.wallet.model',  Wallet::class);
         // Tiempo de Bloqueo
@@ -62,8 +61,9 @@ class AtomicBalanceUpdate
     /**
      * Verifica si la variable $wallet es una instancia del modelo Configurado
      */
-    private function verifyWallet():void
+    private function verifyWallet($wallet=null):void
     {
+        $wallet = is_null($wallet) ? $this->wallet : $wallet;
         if (!$this->wallet instanceof $this->walletClass) {
             throw new Exception('Error Wallet no valida');
         }
@@ -102,6 +102,20 @@ class AtomicBalanceUpdate
             throw new Exception('Monto fuera de Rango',0);
         }
     }
+
+    /**
+     * Realiza las validaciones para depósitos y retiros
+     */
+    public function validar(string $amount)
+    {
+        // Verificar el rango
+        $this->verifyAmountRange($amount);
+        // Verifica que el monto sea Positivo 
+        $this->verifyPositiveAmount($amount);
+        // Verifica que la wallet sea valida
+        $this->verifyWallet();
+    }
+
     /**
      * Revisa las reglas de Transferencias
      */
@@ -131,7 +145,6 @@ class AtomicBalanceUpdate
         // Se obtiene el numero de decimales que tiene configurada la wallet
         $this->decimalPlacesWallet = $this->wallet->decimal_places;
         // Obtiene el valor de ajuste de decimales 
-        
         $this->decimalPlacesAdjustment = $this->math->round($this->math->powTen($this->decimalPlacesWallet));
         return $this;
     }
@@ -139,48 +152,36 @@ class AtomicBalanceUpdate
     /**
      * Realiza un deposito a la wallet configurada
      */
-    public function deposit(string $amount,array $meta = [],bool $confirmed = true) : Model
+    public function deposit(string $amount,array $meta = [],bool $confirmed = true) 
     {
-        // Verificar el rango
-        $this->verifyAmountRange($amount);
-        // Verifica que el monto sea Positivo 
-        $this->verifyPositiveAmount($amount);
-        // Verifica que la wallet sea valida
-        $this->verifyWallet();
+        // Realiza una verificación
+        $this->validar($amount);
         // Convierte la cantidad a decimales 
         $amount = $this->castToDecimal($amount);
         // Inicia el Bloqueo de la transacción 
-        return $this->cache->lock($this->lockKey,$this->ttlBlock,function() use ($amount,$meta,$confirmed){
-            // Se inicia la Transacción en la base de datos
-            DB::transaction(function () use ($amount,$meta,$confirmed) {
-                // Verifica si es un deposito confirmado 
-                if($confirmed){
-                    // Realiza la actualización del Balance
-                    $this->incrementWalletBalance($amount);
-                }
-                // Genera el registro de la Transacción realizada
-                $this->createTransaction($this->classTransaction::TYPE_DEPOSIT,$amount,$confirmed,$meta);
-            }); 
-            // Finaliza la transacción de la base de datos
+        return $this->atomic->AtomicTransaction($this->lockKey,$this->ttlBlock,function () use ($amount,$meta,$confirmed) {
+            // Verifica si es un deposito confirmado 
+            if($confirmed){
+                // Realiza la actualización del Balance
+                $this->incrementWalletBalance($amount);
+            }
+            // Genera el registro de la Transacción realizada
+            $this->createTransaction($this->classTransaction::TYPE_DEPOSIT,$amount,$confirmed,$meta);
             return $this->wallet;
-         });
+        });
     }
 
     /**
      * Realiza un retiro a la wallet configurada
      */
-    public function withdraw(string $amount,array $meta = [],bool $confirmed = true,bool $force=false): Model
+    public function withdraw(string $amount,array $meta = [],bool $confirmed = true,bool $force=false)
     {
-        // Verificar el rango
-        $this->verifyAmountRange($amount);
-        // Verifica que el monto sea Positivo
-        $this->verifyPositiveAmount($amount);
-        // Verifica que la wallet sea valida
-        $this->verifyWallet();
+        // Realiza una verificación
+        $this->validar($amount);
         // Convierte la cantidad a decimales 
         $amount = $this->castToDecimal($amount);
         // Inicia el Bloqueo de la transacción
-        return $this->cache->lock($this->lockKey,$this->ttlBlock,function() use ($amount,$meta,$confirmed,$force)
+        return $this->atomic->AtomicTransaction($this->lockKey,$this->ttlBlock,function () use ($amount,$meta,$confirmed,$force)
         {
             // Verifica si el retiro es forzado
             if(!$force){
@@ -190,19 +191,16 @@ class AtomicBalanceUpdate
                     throw new Exception('Fondos Insuficientes');
                 }
             }
-            // Se inicia la Transacción en la base de datos
-            DB::transaction(function () use ($amount,$meta,$confirmed) {
-                // Verifica si es un retiro confirmado
-                if($confirmed){
-                    // Realiza la actualización del Balance
-                    $this->decrementWalletBalance($amount);
-                }
-                // Convierte el Monto a Negativo para el registro
-                $amount = $this->math->negative($amount);
-                // Genera el registro de la transacción
-                $this->createTransaction($this->classTransaction::TYPE_WITHDRAW,$amount,$confirmed,$meta);
-            }); 
-            // Finaliza la transacción de la base de datos
+            // Verifica si es un retiro confirmado
+            if($confirmed){
+                // Realiza la actualización del Balance
+                $this->decrementWalletBalance($amount);
+            }
+            // Convierte el Monto a Negativo para el registro
+            $amount = $this->math->negative($amount);
+            // Genera el registro de la transacción
+            $this->createTransaction($this->classTransaction::TYPE_WITHDRAW,$amount,$confirmed,$meta);
+        
             return $this->wallet;
          });
     }
@@ -210,7 +208,7 @@ class AtomicBalanceUpdate
     /**
      * Realiza una transferencia de la wallet configurada a otra 
      */
-    public function transfer(Model $walletReceiver, string $amount, array $meta = [],  bool $force = false): Model
+    public function transfer(Model $walletReceiver, string $amount, array $meta = [],  bool $force = false)
     {
         return $this->transaction(
             $amount,
@@ -226,7 +224,7 @@ class AtomicBalanceUpdate
      /**
       * Realiza el Pago de un producto
       */
-    //public function pay($walletReceiver,string $amount,array $meta = [],bool $force=false): Model
+    //public function pay($walletReceiver,string $amount,array $meta = [],bool $force=false)
     //{
     //    return $this->transaction($amount,$walletReceiver,$this->classTransfer::STATUS_PAID,$meta,$force);
     //}
@@ -234,7 +232,7 @@ class AtomicBalanceUpdate
     /**
      * Realiza una devolución 
      */
-    //public function refound($walletReceiver,string $amount,array $meta = [],bool $force=false): Model
+    //public function refound($walletReceiver,string $amount,array $meta = [],bool $force=false)
     //{
     //    return $this->transaction($amount,$walletReceiver,$this->classTransfer::STATUS_REFUND,$meta,$force);
     //}
@@ -242,12 +240,18 @@ class AtomicBalanceUpdate
     /**
      * Genera una transacción entre la wallet configurada y otra
      */
-    private function transaction(string $amount, Model $walletReceiver, string $type, array $meta = [], $force = false): Model
+    private function transaction(string $amount, Model $walletReceiver, string $type, array $meta = [], $force = false)
     {
         // Verifica que el monto sea Positivo
         $this->verifyPositiveAmount($amount);
+        // Verificar wallet receptora
+        $this->verifyWallet($walletReceiver);
+        // Verifica que las reglas de transferencia se cumplan 
+        $this->checkTransactionRules($type,$this->wallet,$walletReceiver);
+        // Se asigna una Key especial para bloquear transacciones de la wallet origen
+        $key = 'wallet'.$this->wallet->id.':transaction:balance:lock';
         // Se inicia la Transacción en la base de datos
-        DB::transaction(function () use ($amount,$walletReceiver,$meta,$force,$type) { 
+        return $this->atomic->AtomicTransaction($key,$this->ttlBlock,function () use ($amount,$walletReceiver,$meta,$force,$type) { 
             // Se guarda la wallet configurada en una variable pivote
             $originalWallet = $this->wallet;
             // Se Realiza el retiro  
@@ -256,8 +260,6 @@ class AtomicBalanceUpdate
             $withdraws = $this->getLastTransaction()[0];
             // Se intercambia la wallet receptora para hacer un deposito
             $this->setWallet($walletReceiver);
-            // Verifica que las reglas de transferencia se cumplan 
-            $this->checkTransactionRules($type,$originalWallet,$walletReceiver);
             // Se realiza el deposito 
             $this->deposit($amount,$meta,true);
             // Se almacena el resultado de la transacción
@@ -275,17 +277,13 @@ class AtomicBalanceUpdate
     /**
      * Realiza la confirmación de un movimiento 
      */
-    public function confirmTransaction(Model $transaction): Model
+    public function confirmTransaction(Model $transaction)
     {
         $this->verifyTransaction($transaction);
-        return $this->cache->lock($this->lockKey,$this->ttlBlock,function() use ($transaction){
-            // Start the transaction
-            DB::transaction(function () use ($transaction) { 
-                $transaction->confirmed = true;
-                $transaction->save();
-                $this->incrementWalletBalance($transaction->amount);
-            }); 
-            // End transaction
+        return $this->atomic->AtomicTransaction($this->lockKey,$this->ttlBlock,function () use ($transaction){
+            $transaction->confirmed = true;
+            $transaction->save();
+            $this->incrementWalletBalance($transaction->amount);
             return $this->wallet;
          });
     }
@@ -295,21 +293,16 @@ class AtomicBalanceUpdate
      */
     public function balanceUpdate()
     {
-        return $this->cache->lock($this->lockKey,$this->ttlBlock,function() 
+        return $this->atomic->AtomicTransaction($this->lockKey,$this->ttlBlock,function ()
         {
-            DB::transaction(function ()
+            $updateAmount = $this->wallet->getAllTransactions()->sum('amount');
+            if ($this->math->compare($updateAmount,$this->wallet->balance) !== 0 ) 
             {
-                $updateAmount = $this->wallet->Transactions()
-                ->where('confirmed', true)
-                ->sum('amount');
-                if ($this->math->compare($updateAmount,$this->wallet->balance) !== 0 ) 
-                {
-                    $this->wallet->balance = $updateAmount;
-                    $this->wallet->save();
-                }
-            }); 
+                $this->wallet->balance = $updateAmount;
+                $this->wallet->save();
+            }
             return $this->wallet;
-         });
+        });
     }
 
     /**

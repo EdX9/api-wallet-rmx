@@ -3,7 +3,9 @@
 namespace App\Services\Lock;
 
 use Illuminate\Support\Facades\Cache;
-
+/**
+ * Servicio de Bloqueo por cache
+ */
 class lockService
 {
     public function __construct() {

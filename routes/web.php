@@ -89,6 +89,16 @@ Route::get('/transfer/force',function ()
     $walletReceiver = Wallet::where('id',12)->first();
     return User::find(1)->getWallet('wallet-recargas')->transferForce($walletReceiver, '10')->uuid;
 });
+
+Route::get('/wallet/update/balance',function ()
+{
+
+    $wallet = User::find(1)->getWallet('wallet-recargas');
+    $wallet->balance = 0;
+    $wallet->save();
+    $wallet->updateBalance();
+    return $wallet->getBalance();
+});
 Route::get('/wallet/create',function ()
 {
     return User::find(1)->createWallet(

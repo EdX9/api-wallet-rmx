@@ -210,9 +210,13 @@ class AtomicBalanceUpdate
     /**
      * Realiza una transferencia de la wallet configurada a otra 
      */
-    public function transfer($walletReceiver,string $amount,array $meta = [],bool $force=false): Model
+    public function transfer(Model $walletReceiver, string $amount, array $meta = [],  bool $force = false): Model
     {
-        return $this->transaction($amount,$walletReceiver,$meta,$force, $this->classTransfer::STATUS_TRANSFER);
+        return $this->transaction(
+            $amount,
+            $walletReceiver,
+            $this->classTransfer::STATUS_TRANSFER,
+            $meta,$force);
     }
 
     /**
@@ -224,7 +228,7 @@ class AtomicBalanceUpdate
       */
     //public function pay($walletReceiver,string $amount,array $meta = [],bool $force=false): Model
     //{
-    //    return $this->transaction($amount,$walletReceiver,$meta,$force, $this->classTransfer::STATUS_PAID);
+    //    return $this->transaction($amount,$walletReceiver,$this->classTransfer::STATUS_PAID,$meta,$force);
     //}
 
     /**
@@ -232,13 +236,13 @@ class AtomicBalanceUpdate
      */
     //public function refound($walletReceiver,string $amount,array $meta = [],bool $force=false): Model
     //{
-    //    return $this->transaction($amount,$walletReceiver,$meta,$force, $this->classTransfer::STATUS_REFUND);
+    //    return $this->transaction($amount,$walletReceiver,$this->classTransfer::STATUS_REFUND,$meta,$force);
     //}
 
     /**
      * Genera una transacción entre la wallet configurada y otra
      */
-    private function transaction(string $amount,Model $walletReceiver,array $meta = [],$force = false,string $type): Model
+    private function transaction(string $amount, Model $walletReceiver, string $type, array $meta = [], $force = false): Model
     {
         // Verifica que el monto sea Positivo
         $this->verifyPositiveAmount($amount);

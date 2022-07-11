@@ -6,6 +6,7 @@ use App\Models\Wallet\Transaction;
 use App\Services\Math\MathService;
 use Illuminate\Database\Eloquent\Model;
 use App\Services\AtomicTransaction\AtomicBalanceUpdate;
+use App\Services\AtomicTransaction\Exception\AtomicTransactionException;
 
 trait WalletOperations
 {
@@ -45,7 +46,7 @@ trait WalletOperations
             $meta = ['deposito'=>''];
             $atomic->deposit($amount,$meta,true);
             $transaction = $atomic->getLastTransaction()[0];
-        } catch (\Throwable $th) {
+        } catch (AtomicTransactionException $th) {
             $transaction = null;
         }
         return $transaction;
@@ -60,7 +61,7 @@ trait WalletOperations
             $atomic = $this->atomicTransaction();
             $atomic->withdraw($amount,$meta ,true,true);
             $transaction = $atomic->getLastTransaction()[0];
-        } catch (\Throwable $th) {
+        } catch (AtomicTransactionException $th) {
             $transaction = null;
         }
         return $transaction;
@@ -75,7 +76,7 @@ trait WalletOperations
             $atomic = $this->atomicTransaction();
             $atomic->deposit($amount,$meta,false);
             $transaction = $atomic->getLastTransaction()[0];
-        } catch (\Throwable $th) {
+        } catch (AtomicTransactionException $th) {
             $transaction = null;
         }
         return $transaction;
@@ -89,7 +90,7 @@ trait WalletOperations
             $atomic = $this->atomicTransaction();
             $atomic->withdraw($amount,$meta ,true,true);
             $transaction = $atomic->getLastTransaction()[0];
-        } catch (\Throwable $th) {
+        } catch (AtomicTransactionException $th) {
             $transaction = null;
         }
         return $transaction;
@@ -104,7 +105,7 @@ trait WalletOperations
             $atomic = $this->atomicTransaction();
             $atomic->transfer($walletReceiver,$amount,$meta,false);
             $transaction = $atomic->getLastTransaction()[0];
-        } catch (\Throwable $th) {
+        } catch (AtomicTransactionException $th) {
             $transaction = null;
             dd($th);
         }
@@ -119,7 +120,7 @@ trait WalletOperations
             $atomic = $this->atomicTransaction();
             $atomic->transfer($walletReceiver,$amount,$meta,true);
             $transaction = $atomic->getLastTransaction()[0];
-        } catch (\Throwable $th) {
+        } catch (AtomicTransactionException $th) {
             $transaction = null;
         }
         return $transaction;
@@ -146,7 +147,7 @@ trait WalletOperations
             $atomic->setTtlBlock(15);
             $atomic->balanceUpdate();
             $atomic->setTtlBlock(config('walletRmx.lock.seconds',3));
-       } catch (\Throwable $th) {
+       } catch (AtomicTransactionException $th) {
             dd($th);
        }
        return  $this->getBalance();

@@ -2,14 +2,15 @@
 
 namespace App\Services\AtomicTransaction;
 
-use Exception;
 use App\Models\Wallet\Wallet;
 use App\Models\Wallet\Transfer;
+use App\Services\AtomicTransaction\Exception\AtomicTransactionException;
 use App\Models\Wallet\Transaction;
 use App\Services\Math\MathService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Config\Repository as ConfigRepository;
 use App\Services\AtomicTransaction\AtomicTransactionDatabaseService;
+
 
 /**
  * Clase para realizar operaciones Atómicas utilizando 
@@ -65,7 +66,7 @@ class AtomicBalanceUpdate
     {
         $wallet = is_null($wallet) ? $this->wallet : $wallet;
         if (!$this->wallet instanceof $this->walletClass) {
-            throw new Exception('Error Wallet no valida');
+            throw new AtomicTransactionException('Error Wallet no valida');
         }
     }
 
@@ -76,10 +77,10 @@ class AtomicBalanceUpdate
     public function verifyTransaction(Model $transaction):void
     {
         if (!$transaction instanceof $this->classTransaction) {
-            throw new Exception('Error Transacción no valida');
+            throw new AtomicTransactionException('Error Transacción no valida');
         }
         if ($transaction->confirmed) {
-            throw new Exception('Error Transacción previamente validada');
+            throw new AtomicTransactionException('Error Transacción previamente validada');
         }
     }
 
@@ -89,7 +90,7 @@ class AtomicBalanceUpdate
     private function verifyPositiveAmount(string $amount):void
     {
         if($this->math->isNegative($amount)){
-            throw new Exception("No debe ingresar números negativos", 1);
+            throw new AtomicTransactionException("No debe ingresar números negativos", 1);
         };
     }
     /**
@@ -99,7 +100,7 @@ class AtomicBalanceUpdate
     {
         $amountLen = strlen(str_replace(['-','.'],['',''],$amount));
         if ($amountLen > $this->amountMaxRange ) {
-            throw new Exception('Monto fuera de Rango',0);
+            throw new AtomicTransactionException('Monto fuera de Rango',0);
         }
     }
 
@@ -127,7 +128,7 @@ class AtomicBalanceUpdate
             $type== $this->classTransfer::STATUS_TRANSFER && 
             $originalWallet->slug !== $walletReceiver->slug)
         {
-            throw new Exception('Error No se puede Realizar Transacciones entre Diferentes Wallet', 1);
+            throw new AtomicTransactionException('Error No se puede Realizar Transacciones entre Diferentes Wallet', 1);
         }
     }
 
@@ -167,7 +168,6 @@ class AtomicBalanceUpdate
             }
             // Genera el registro de la Transacción realizada
             $this->createTransaction($this->classTransaction::TYPE_DEPOSIT,$amount,$confirmed,$meta);
-            return $this->wallet;
         });
     }
 
@@ -188,7 +188,7 @@ class AtomicBalanceUpdate
                 // En caso de no serlo verifica los fondos 
                 if($this->math->compare($this->wallet->balance,$amount) == -1)
                 {
-                    throw new Exception('Fondos Insuficientes');
+                    throw new AtomicTransactionException('Fondos Insuficientes');
                 }
             }
             // Verifica si es un retiro confirmado
@@ -200,8 +200,6 @@ class AtomicBalanceUpdate
             $amount = $this->math->negative($amount);
             // Genera el registro de la transacción
             $this->createTransaction($this->classTransaction::TYPE_WITHDRAW,$amount,$confirmed,$meta);
-        
-            return $this->wallet;
          });
     }
 
@@ -268,10 +266,7 @@ class AtomicBalanceUpdate
             $this->setWallet($originalWallet);
             // Se crea un registro de Transferencia 
             $this->createTransfer($originalWallet, $walletReceiver,$type,$deposit,$withdraws);
-
-        }); 
-        // Finaliza la transacción de la base de datos
-        return $this->wallet;
+        });
     }
 
     /**
@@ -279,13 +274,17 @@ class AtomicBalanceUpdate
      */
     public function confirmTransaction(Model $transaction)
     {
-        $this->verifyTransaction($transaction);
-        return $this->atomic->AtomicTransaction($this->lockKey,$this->ttlBlock,function () use ($transaction){
-            $transaction->confirmed = true;
-            $transaction->save();
-            $this->incrementWalletBalance($transaction->amount);
-            return $this->wallet;
-         });
+        try {
+            $this->verifyTransaction($transaction);
+            return $this->atomic->AtomicTransaction($this->lockKey,$this->ttlBlock,function () use ($transaction){
+                $transaction->confirmed = true;
+                $transaction->save();
+                $this->incrementWalletBalance($transaction->amount);
+                return $this->wallet;
+            });
+        } catch (\Throwable $th) {
+            throw new AtomicTransactionException('Error al Actualizar el balance',7,$th);
+        }
     }
 
     /**
@@ -293,16 +292,20 @@ class AtomicBalanceUpdate
      */
     public function balanceUpdate()
     {
-        return $this->atomic->AtomicTransaction($this->lockKey,$this->ttlBlock,function ()
-        {
-            $updateAmount = $this->wallet->getAllTransactions()->sum('amount');
-            if ($this->math->compare($updateAmount,$this->wallet->balance) !== 0 ) 
+        try {
+            return $this->atomic->AtomicTransaction($this->lockKey,$this->ttlBlock,function ()
             {
-                $this->wallet->balance = $updateAmount;
-                $this->wallet->save();
-            }
-            return $this->wallet;
-        });
+                $updateAmount = $this->wallet->getAllTransactions()->sum('amount');
+                if ($this->math->compare($updateAmount,$this->wallet->balance) !== 0 ) 
+                {
+                    $this->wallet->balance = $updateAmount;
+                    $this->wallet->save();
+                }
+                return $this->wallet;
+            });
+        } catch (\Throwable $th) {
+            throw new AtomicTransactionException('Error al Actualizar el balance',6,$th);
+        }
     }
 
     /**
@@ -318,17 +321,21 @@ class AtomicBalanceUpdate
      */
     private function createTransaction(string $type, string $amount,bool $confirmed,array $meta):void
     {
-        $this->lastTransaction = $this->classTransaction::create(
-            [
-                'payable_type' => $this->wallet->holder_type,
-                'payable_id' => $this->wallet->holder_id,
-                'wallet_id' => $this->wallet->id,
-                'type' => $type,
-                'amount' => $amount,
-                'confirmed' => $confirmed,
-                'meta'=>$meta,
-            ]
-        );
+        try {
+            $this->lastTransaction = $this->classTransaction::create(
+                [
+                    'payable_type' => $this->wallet->holder_type,
+                    'payable_id' => $this->wallet->holder_id,
+                    'wallet_id' => $this->wallet->id,
+                    'type' => $type,
+                    'amount' => $amount,
+                    'confirmed' => $confirmed,
+                    'meta'=>$meta,
+                ]
+            );
+        } catch (\Throwable $th) {
+            throw new AtomicTransactionException('Error al Crear una transacción',5,$th);
+        }
     }
 
     /**
@@ -336,18 +343,21 @@ class AtomicBalanceUpdate
      */
     private function createTransfer(Model $wallet,Model $walletReceiver,string $type,Model $deposit,Model $withdraws):void
     {
-        
-        $this->lastTransaction =  $this->classTransfer::create(
-            [
-                'from_type' => $this->walletClass,
-                'from_id' => $wallet->id,
-                'to_type' => $this->walletClass,
-                'to_id' => $walletReceiver->id,
-                'status' => $type,
-                'deposit_id' => $deposit->id,
-                'withdraw_id' => $withdraws->id,
-            ]
-        );
+        try {
+            $this->lastTransaction =  $this->classTransfer::create(
+                [
+                    'from_type' => $this->walletClass,
+                    'from_id' => $wallet->id,
+                    'to_type' => $this->walletClass,
+                    'to_id' => $walletReceiver->id,
+                    'status' => $type,
+                    'deposit_id' => $deposit->id,
+                    'withdraw_id' => $withdraws->id,
+                ]
+            );
+        } catch (\Throwable $th) {
+            throw new AtomicTransactionException('Error al Crear una transferencia',4,$th);
+        }
     }
 
     /**
@@ -355,10 +365,15 @@ class AtomicBalanceUpdate
      */
     private function incrementWalletBalance(string $amount):void
     {
-        $this->wallet->balance = $this->math->add(
-            $this->wallet->balance,$amount,
-            0);
-        $this->wallet->save();    
+        try {
+            $this->wallet->balance = $this->math->add(
+                $this->wallet->balance,$amount,
+                0);
+            $this->wallet->save();
+        } catch (\Throwable $th) {
+            throw new AtomicTransactionException('Error al incrementar el saldo',2,$th);
+        }
+            
     }
 
     /**
@@ -366,11 +381,15 @@ class AtomicBalanceUpdate
      */
     private function decrementWalletBalance(string $amount):void
     {
+        try {
         $this->wallet->balance = $this->math->sub(
             $this->wallet->balance,
             $amount,
             0);
         $this->wallet->save();
+        } catch (\Throwable $th) {
+            throw new AtomicTransactionException('Error al disminuir el saldo',3,$th);
+        }
     }
     /**
      * Obtiene la ultima transacción realizada

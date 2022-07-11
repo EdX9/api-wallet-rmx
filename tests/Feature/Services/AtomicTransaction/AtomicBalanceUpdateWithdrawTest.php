@@ -3,6 +3,7 @@
 use App\Models\Wallet\Wallet;
 use App\Services\Math\MathService;
 use App\Services\AtomicTransaction\AtomicBalanceUpdate;
+use App\Services\AtomicTransaction\Exception\AtomicTransactionException;
 
 beforeEach(function ()
 {
@@ -13,6 +14,7 @@ beforeEach(function ()
         'balance'=>'50000',
         'decimal_places'=>'2'
     ]);
+    
     $this->math = app(MathService::class);
     $this->atomicTransaction = app(AtomicBalanceUpdate::class)->setWallet($this->wallet);
 });
@@ -96,19 +98,22 @@ test('Retiro forzado ', function ($retiro,$balanceEsperado)
  */
 test('retiro numero fuera de rango ', function ($saldoEntero) 
 {
+
     $this->atomicTransaction->withdraw($saldoEntero);
-})->with([//100000000000000000000000000000000000000000000000000000000000//60
+
+})->with([
     '1000000000000000000000000000000000000000000000000000000000000000',
     1000000000000000000000000000000000000000000000000000000000000000,
     '1.000000000000000000000000000000000000000000000000000000000000000'
-])->throws(Exception::class,'Monto fuera de Rango');
+])->throws(AtomicTransactionException::class,'Monto fuera de Rango');
+
 
 test('Retiro fondos insuficientes ', function () 
 {   
     $walletBalanceUpdate = app(AtomicBalanceUpdate::class)->setWallet($this->wallet);
     $walletBalanceUpdate->withdraw('500.01');
 })
-->throws(Exception::class,'Fondos Insuficientes');
+->throws(AtomicTransactionException::class,'Fondos Insuficientes');
 
 
 test('Retiro fallido', function ($saldoEntero) 
@@ -128,13 +133,12 @@ test('Retiro fallido', function ($saldoEntero)
     -0.1599,
     -15000000000.99
 ])
-->throws(Exception::class,'No debe ingresar números negativos');
-
+->throws(AtomicTransactionException::class,'No debe ingresar números negativos');
 
 
 test('Wallet no ingresada', function () 
 {
     app(AtomicBalanceUpdate::class)->withdraw('15.99');
 })
-->throws(Exception::class,'Error Wallet no valida');
+->throws(AtomicTransactionException::class,'Error Wallet no valida');
 

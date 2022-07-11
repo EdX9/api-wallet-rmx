@@ -1,10 +1,11 @@
 <?php
 
-use App\Models\Wallet\Transaction;
-use App\Models\Wallet\Transfer;
 use App\Models\Wallet\Wallet;
+use App\Models\Wallet\Transfer;
+use App\Models\Wallet\Transaction;
 use App\Services\Math\MathService;
 use App\Services\AtomicTransaction\AtomicBalanceUpdate;
+use App\Services\AtomicTransaction\Exception\AtomicTransactionException;
 
 beforeEach(function ()
 {
@@ -13,11 +14,13 @@ beforeEach(function ()
         'name'=>'Servicios Wallet',
         'slug'=>'servicios-wallet',
     ]);
+
     $this->wallet2 = Wallet::factory()->create([
         'holder_id' => 2,
         'name'=>'Servicios Wallet',
         'slug'=>'servicios-wallet',
     ]);
+
     $this->math = app(MathService::class);
     $this->atomicTransaction = app(AtomicBalanceUpdate::class)->setWallet($this->wallet);
 });
@@ -90,7 +93,7 @@ test('Transferencia con monto negativo', function ($saldoWallet1,$saldoWallet2,$
 })->with([
     [ -15000,15000,-1],
     [ -15000,15000,-15],
-])->throws(Exception::class,'No debe ingresar números negativos');
+])->throws(AtomicTransactionException::class,'No debe ingresar números negativos');
 
 test('Transferencia entre wallets fondos insuficientes', function ($saldoWallet1,$saldoWallet2,$montoATransferir) 
 {
@@ -105,22 +108,25 @@ test('Transferencia entre wallets fondos insuficientes', function ($saldoWallet1
 })->with([
     [-0.1,10,1],
     [0,10,0.5]
-])->throws(Exception::class,'Fondos Insuficientes');
+])->throws(AtomicTransactionException::class,'Fondos Insuficientes');
 
 test('No se hagan transferencias entre distintas wallet ',function(){
+
     $this->wallet3 = Wallet::factory()->create([
         'holder_id' => 3,
         'name'=>'Recargas Wallet',
         'slug'=>'Recargas-wallet',
         'balance'=>'1000'
     ]);
+
     $this->atomicTransaction = app(AtomicBalanceUpdate::class)->setWallet($this->wallet3);
-    $this->atomicTransaction->transfer($this->wallet2,10);   
+    $this->atomicTransaction->transfer($this->wallet2,10); 
+     
 })
-->throws(Exception::class,'Error No se puede Realizar Transacciones entre Diferentes Wallet');
+->throws(AtomicTransactionException::class,'Error No se puede Realizar Transacciones entre Diferentes Wallet');
 
 test('Wallet no ingresada', function () 
 {
     app(AtomicBalanceUpdate::class)->transfer($this->wallet2,'15');
     
-})->throws(Exception::class,'Error Wallet no valida');
+})->throws(AtomicTransactionException::class,'Error Wallet no valida');

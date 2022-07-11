@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Models\Wallet\Wallet;
 use App\Services\Math\MathService;
 use App\Services\AtomicTransaction\AtomicBalanceUpdate;
+use App\Services\AtomicTransaction\Exception\AtomicTransactionException;
 
 
 beforeEach(function ()
@@ -83,11 +84,12 @@ test('Depósitos pendiente', function ($saldoEsperado,$saldoEntero,$meta)
 /**
  * Errores
  */
+
 test('Depósitos fallido', function ($saldoEntero) 
 {
+
     $this->atomicTransaction->deposit($saldoEntero);
 
-    
 })->with([
     '-1500',
     '-1500000000000',
@@ -99,37 +101,45 @@ test('Depósitos fallido', function ($saldoEntero)
     -15.99,
     -0.1599,
     -15000000000.99
-])->throws(Exception::class,'No debe ingresar números negativos');
+])->throws(AtomicTransactionException::class,'No debe ingresar números negativos');
+
+
 
 test('Depósitos numero fuera de rango ', function ($saldoEntero) 
 {
+
     $this->atomicTransaction->deposit($saldoEntero);
+
 })->with([
     '1000000000000000000000000000000000000000000000000000000000000000',
     1000000000000000000000000000000000000000000000000000000000000000,
     '1.000000000000000000000000000000000000000000000000000000000000000'
-])->throws(Exception::class,'Monto fuera de Rango');
+])->throws(AtomicTransactionException::class,'Monto fuera de Rango');
+
 
 test("confirmación no valida",function(){
+
     $transaction = \App\Models\Wallet\Transfer::factory(1)->create()->first();
     $this->atomicTransaction->confirmTransaction($transaction);
+
 })
-->throws(Exception::class,'Error Transacción no valida');
+->throws(AtomicTransactionException::class,'Error Transacción no valida');
 
 test("confirmación previamente validada",function(){
 
-    $transaction = \App\Models\Wallet\Transaction::factory(1)->create(
-        [
-            'wallet_id'=>$this->wallet->id,
-            'confirmed'=>1]
-    )->first();
+    $transaction = \App\Models\Wallet\Transaction::factory(1)
+    ->create(['wallet_id'=>$this->wallet->id,'confirmed'=>1])
+    ->first();
     $this->atomicTransaction->confirmTransaction($transaction);
 })
-->throws(Exception::class,'Error Transacción previamente validada');
+->throws(AtomicTransactionException::class,'Error Transacción previamente validada');
+
 
 test('Wallet no valida', function ($wallet) 
 {
+
     app(AtomicBalanceUpdate::class)->setWallet($wallet);
+
 })
 ->with([
     null,
@@ -140,16 +150,20 @@ test('Wallet no valida', function ($wallet)
 ])
 ->throws(TypeError::class);
 
+
 test('Wallet Modelo no valido', function () 
 {
+
     $wallet = User::factory(1)->create()->first();
     app(AtomicBalanceUpdate::class)->setWallet($wallet);
+
     
-})->throws(Exception::class,'Error Wallet no valida');
+})->throws(AtomicTransactionException::class,'Error Wallet no valida');
+
 
 test('Wallet no ingresada', function () 
 {
     app(AtomicBalanceUpdate::class)->deposit('15.99');
     
-})->throws(Exception::class,'Error Wallet no valida');
+})->throws(AtomicTransactionException::class,'Error Wallet no valida');
 
